@@ -1,19 +1,19 @@
-pragma solidity ^0.5.16;
+pragma solidity ^0.6.7;
 
 contract Vester {
-    address public token;
+    address public immutable token;
     address public recipient;
 
-    uint public vestingAmount;
-    uint public vestingBegin;
-    uint public vestingCliff;
-    uint public vestingEnd;
+    uint public immutable vestingAmount;
+    uint public immutable vestingBegin;
+    uint public immutable vestingCliff;
+    uint public immutable vestingEnd;
 
     uint public lastUpdate;
 
     constructor(
         address token_,
-        address recipient_,
+        address recipient_,    
         uint vestingAmount_,
         uint vestingBegin_,
         uint vestingCliff_,
@@ -31,7 +31,7 @@ contract Vester {
         vestingCliff = vestingCliff_;
         vestingEnd = vestingEnd_;
 
-        lastUpdate = vestingBegin;
+        lastUpdate = vestingBegin_;
     }
 
     function setRecipient(address recipient_) public {
@@ -43,12 +43,12 @@ contract Vester {
         require(block.timestamp >= vestingCliff, 'Vester::claim: not time yet');
         uint amount;
         if (block.timestamp >= vestingEnd) {
-            amount = IToken(token).balanceOf(address(this));
+            amount = IERC20(token).balanceOf(address(this));
         } else {
             amount = mul(vestingAmount, (block.timestamp - lastUpdate)) / (vestingEnd - vestingBegin);
             lastUpdate = block.timestamp;
         }
-        IToken(token).transfer(recipient, amount);
+        IERC20(token).transfer(recipient, amount);
     }
 
     function mul(uint a, uint b) internal pure returns (uint c) {
@@ -56,7 +56,7 @@ contract Vester {
     }    
 }
 
-interface IToken {
+interface IERC20 {
     function balanceOf(address account) external view returns (uint);
     function transfer(address dst, uint rawAmount) external returns (bool);
 }

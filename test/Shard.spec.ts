@@ -18,6 +18,14 @@ const PERMIT_TYPEHASH = utils.keccak256(
   utils.toUtf8Bytes('Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)')
 )
 
+const TRANSFER_TYPEHASH = utils.keccak256(
+  utils.toUtf8Bytes('Transfer(address to,uint256 value,uint256 nonce,uint256 expiry)')
+)
+
+const TRANSFER_WITH_FEE_TYPEHASH = utils.keccak256(
+  utils.toUtf8Bytes('TransferWithFee(address to,uint256 value,uint256 fee,uint256 nonce,uint256 expiry)')
+)
+
 describe('Shard', () => {
   const provider = new MockProvider({
     ganacheOptions: {
@@ -72,6 +80,83 @@ describe('Shard', () => {
     expect(await shard.nonces(owner)).to.eq(1)
 
     await shard.connect(other0).transferFrom(owner, spender, value)
+  })
+
+  it('transferBySig', async () => {
+    const domainSeparator = utils.keccak256(
+      utils.defaultAbiCoder.encode(
+        ['bytes32', 'bytes32', 'uint256', 'address'],
+        [DOMAIN_TYPEHASH, utils.keccak256(utils.toUtf8Bytes('Shard')), 1, shard.address]
+      )
+    )
+
+    const signatory = wallet.address
+    const to = other0.address
+    const value = 123
+    const nonce = await shard.nonces(signatory)
+    const expiry = constants.MaxUint256
+    const digest = utils.keccak256(
+      utils.solidityPack(
+        ['bytes1', 'bytes1', 'bytes32', 'bytes32'],
+        [
+          '0x19',
+          '0x01',
+          domainSeparator,
+          utils.keccak256(
+            utils.defaultAbiCoder.encode(
+              ['bytes32', 'address', 'uint256', 'uint256', 'uint256'],
+              [TRANSFER_TYPEHASH, to, value, nonce, expiry]
+            )
+          ),
+        ]
+      )
+    )
+
+    const { v, r, s } = ecsign(Buffer.from(digest.slice(2), 'hex'), Buffer.from(wallet.privateKey.slice(2), 'hex'))
+
+    await shard.connect(other0).transferBySig(to, value, nonce, expiry, v, utils.hexlify(r), utils.hexlify(s))
+    expect(await shard.nonces(signatory)).to.eq(1)
+    expect(await shard.balanceOf(to)).to.eq(value)
+  })
+
+  it('transferWithFeeBySig', async () => {
+    const domainSeparator = utils.keccak256(
+      utils.defaultAbiCoder.encode(
+        ['bytes32', 'bytes32', 'uint256', 'address'],
+        [DOMAIN_TYPEHASH, utils.keccak256(utils.toUtf8Bytes('Shard')), 1, shard.address]
+      )
+    )
+
+    const signatory = wallet.address
+    const to = other0.address
+    const value = 123
+    const fee = 10
+    const nonce = await shard.nonces(signatory)
+    const expiry = constants.MaxUint256
+    const feeTo = other1.address
+    const digest = utils.keccak256(
+      utils.solidityPack(
+        ['bytes1', 'bytes1', 'bytes32', 'bytes32'],
+        [
+          '0x19',
+          '0x01',
+          domainSeparator,
+          utils.keccak256(
+            utils.defaultAbiCoder.encode(
+              ['bytes32', 'address', 'uint256', 'uint256', 'uint256', 'uint256'],
+              [TRANSFER_WITH_FEE_TYPEHASH, to, value, fee, nonce, expiry]
+            )
+          ),
+        ]
+      )
+    )
+
+    const { v, r, s } = ecsign(Buffer.from(digest.slice(2), 'hex'), Buffer.from(wallet.privateKey.slice(2), 'hex'))
+
+    await shard.connect(other1).transferWithFeeBySig(to, value, fee, nonce, expiry, feeTo, v, utils.hexlify(r), utils.hexlify(s))
+    expect(await shard.nonces(signatory)).to.eq(1)
+    expect(await shard.balanceOf(to)).to.eq(value)
+    expect(await shard.balanceOf(feeTo)).to.eq(fee)
   })
 
   it('nested delegation', async () => {

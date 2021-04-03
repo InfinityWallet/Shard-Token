@@ -23,7 +23,7 @@ contract Shard {
     uint public mintingAllowedAfter;
 
     /// @notice Minimum time between mints
-    uint32 public constant minimumTimeBetweenMints = 1 days * 183;
+    uint32 public constant minimumTimeBetweenMints = 183 days;
 
     /// @dev Allowance amounts on behalf of others
     mapping (address => mapping (address => uint96)) internal allowances;
@@ -153,12 +153,12 @@ contract Shard {
      * @return Whether or not the burn succeeded
      */
     function burnFrom(address src, uint rawAmount) external returns (bool) {
+        uint96 amount = safe96(rawAmount, "Shard::burnFrom: amount exceeds 96 bits");
         address spender = msg.sender;
         uint96 spenderAllowance = allowances[src][spender];
-        uint96 amount = safe96(rawAmount, "Shard::burnFrom: amount exceeds 96 bits");
 
         if (spender != src && spenderAllowance != uint96(-1)) {
-            uint96 newAllowance = sub96(spenderAllowance, amount, "Shard::burnFrom: burn amount exceeds spender allowance");
+            uint96 newAllowance = sub96(spenderAllowance, amount, "Shard::burnFrom: amount exceeds spender allowance");
             _approve(src, spender, newAllowance);
         }
 
@@ -204,7 +204,7 @@ contract Shard {
      */
     function increaseAllowance(address spender, uint rawAmount) external returns (bool) {
         uint96 amount = safe96(rawAmount, "Shard::increaseAllowance: amount exceeds 96 bits");
-        uint96 newAllowance = add96(allowances[msg.sender][spender], amount, "Shard::increaseAllowance: allowance amount overflows");
+        uint96 newAllowance = add96(allowances[msg.sender][spender], amount, "Shard::increaseAllowance: allowance overflows");
         _approve(msg.sender, spender, newAllowance);
         return true;
     }
@@ -217,7 +217,7 @@ contract Shard {
      */
     function decreaseAllowance(address spender, uint rawAmount) external returns (bool) {
         uint96 amount = safe96(rawAmount, "Shard::decreaseAllowance: amount exceeds 96 bits");
-        uint96 newAllowance = sub96(allowances[msg.sender][spender], amount, "Shard::decreaseAllowance: allowance amount underflows");
+        uint96 newAllowance = sub96(allowances[msg.sender][spender], amount, "Shard::decreaseAllowance: allowance underflows");
         _approve(msg.sender, spender, newAllowance);
         return true;
     }
@@ -239,15 +239,14 @@ contract Shard {
         } else {
             amount = safe96(rawAmount, "Shard::permit: amount exceeds 96 bits");
         }
-
+        
         require(block.timestamp <= deadline, "Shard::permit: signature expired");
         bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, rawAmount, nonces[owner]++, deadline));
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", getDomainSeparator(), structHash));
-        address signatory = ecrecover(digest, v, r, s);
+        address signatory = ecrecover(getDigest(structHash), v, r, s);
         require(signatory != address(0), "Shard::permit: invalid signature");
         require(signatory == owner, "Shard::permit: unauthorized");
 
-        _approve(owner, spender, amount);
+        return _approve(owner, spender, amount);
     }
 
     /**
@@ -279,12 +278,12 @@ contract Shard {
      * @return Whether or not the transfer succeeded
      */
     function transferFrom(address src, address dst, uint rawAmount) external returns (bool) {
+        uint96 amount = safe96(rawAmount, "Shard::transferFrom: amount exceeds 96 bits");
         address spender = msg.sender;
         uint96 spenderAllowance = allowances[src][spender];
-        uint96 amount = safe96(rawAmount, "Shard::transferFrom: amount exceeds 96 bits");
 
         if (spender != src && spenderAllowance != uint96(-1)) {
-            uint96 newAllowance = sub96(spenderAllowance, amount, "Shard::transferFrom: transfer amount exceeds spender allowance");
+            uint96 newAllowance = sub96(spenderAllowance, amount, "Shard::transferFrom: amount exceeds spender allowance");
             _approve(src, spender, newAllowance);
         }
 
@@ -323,8 +322,7 @@ contract Shard {
         
         require(block.timestamp <= expiry, "Shard::transferBySig: signature expired");
         bytes32 structHash = keccak256(abi.encode(TRANSFER_TYPEHASH, dst, rawAmount, nonce, expiry));
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", getDomainSeparator(), structHash));
-        address signatory = ecrecover(digest, v, r, s);
+        address signatory = ecrecover(getDigest(structHash), v, r, s);
         require(signatory != address(0), "Shard::transferBySig: invalid signature");
         require(nonce == nonces[signatory]++, "Shard::transferBySig: invalid nonce");
         
@@ -349,8 +347,7 @@ contract Shard {
 
         require(block.timestamp <= expiry, "Shard::transferWithFeeBySig: signature expired");
         bytes32 structHash = keccak256(abi.encode(TRANSFER_WITH_FEE_TYPEHASH, dst, rawAmount, rawFee, nonce, expiry));
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", getDomainSeparator(), structHash));
-        address signatory = ecrecover(digest, v, r, s);
+        address signatory = ecrecover(getDigest(structHash), v, r, s);
         require(signatory != address(0), "Shard::transferWithFeeBySig: invalid signature");
         require(nonce == nonces[signatory]++, "Shard::transferWithFeeBySig: invalid nonce");
 
@@ -378,8 +375,7 @@ contract Shard {
     function delegateBySig(address delegatee, uint nonce, uint expiry, uint8 v, bytes32 r, bytes32 s) public {
         require(block.timestamp <= expiry, "Shard::delegateBySig: signature expired");
         bytes32 structHash = keccak256(abi.encode(DELEGATION_TYPEHASH, delegatee, nonce, expiry));
-        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", getDomainSeparator(), structHash));
-        address signatory = ecrecover(digest, v, r, s);
+        address signatory = ecrecover(getDigest(structHash), v, r, s);
         require(signatory != address(0), "Shard::delegateBySig: invalid signature");
         require(nonce == nonces[signatory]++, "Shard::delegateBySig: invalid nonce");
         return _delegate(signatory, delegatee);
@@ -442,7 +438,9 @@ contract Shard {
     }
 
     function _burnTokens(address src, uint96 amount) internal {
-        balances[src] = sub96(balances[src], amount, "Shard::_burnTokens: burn amount exceeds balance");
+        require(src != address(0), "Shard::_burnTokens: cannot transfer from the zero address");
+        
+        balances[src] = sub96(balances[src], amount, "Shard::_burnTokens: transfer amount exceeds balance");
         totalSupply -= amount; // no case where balance exceeds totalSupply
         emit Transfer(src, address(0), amount);
 
@@ -523,10 +521,11 @@ contract Shard {
     function add256(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256 c) {
         require((c = a + b) >= a, errorMessage);
     }
-
-    function getDomainSeparator() internal view returns (bytes32) {
+    
+    function getDigest(bytes32 structHash) internal view returns (bytes32) {
         uint256 chainId;
         assembly { chainId := chainid() }
-        return keccak256(abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(name)), chainId, address(this)));
+        bytes32 domainSeparator =  keccak256(abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(name)), chainId, address(this)));
+        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
     }
 }
