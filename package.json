@@ -1,6 +1,6 @@
 {
   "name": "@InfinityWallet/Shard",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Shard contracts",
   "author": "Shard",
   "license": "MIT",
@@ -24,7 +24,7 @@
     "mocha": "^8.1.3",
     "prettier": "^2.1.1",
     "rimraf": "^3.0.2",
-    "solc": "0.5.16",
+    "solc": "0.6.12",
     "ts-node": "^9.0.0",
     "typescript": "^4.0.2"
   }

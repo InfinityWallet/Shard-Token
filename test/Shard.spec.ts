@@ -194,14 +194,12 @@ describe('Shard', () => {
     await expect(shard.connect(other1).mint(other1.address, 1)).to.be.revertedWith('Shard::mint: only the minter can mint')
     await expect(shard.mint('0x0000000000000000000000000000000000000000', 1)).to.be.revertedWith('Shard::mint: cannot transfer to the zero address')
 
-    // can mint up to 1%
+    // cannot mint 1% + 1
     const amount = supply.div(100)
+    await expect(shard.mint(wallet.address, amount.add(1))).to.be.revertedWith('Shard::mint: amount exceeds mint allowance')
+
+    // can mint up to 1%
     await shard.mint(wallet.address, amount)
     expect(await shard.balanceOf(wallet.address)).to.be.eq(supply.add(amount))
-
-    timestamp = await shard.mintingAllowedAfter()
-    await mineBlock(provider, timestamp.toString())
-    // cannot mint 1% + 1
-    await expect(shard.mint(wallet.address, supply.div(100).add(1))).to.be.revertedWith('Shard::mint: amount exceeds mint allowance')
   })
 })
