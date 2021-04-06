@@ -11,7 +11,7 @@ contract Shard {
     uint8 public constant decimals = 18;
 
     /// @notice Total number of tokens in circulation
-    uint public totalSupply = 100_000_000e18; // 100 million Shard
+    uint public totalSupply = 80_000_000e18; // 80 million Shard
 
     /// @notice Limit on the totalSupply that can be minted
     uint96 public constant maxSupply = 210_000_000e18; // 210 million Shard
@@ -126,7 +126,7 @@ contract Shard {
         _totalSupply = add256(_totalSupply, amount, "Shard::mint: totalSupply overflows");
         require(_totalSupply <= maxSupply, "Shard::mint: totalSupply exceeds maxSupply");
         totalSupply = _totalSupply;
-        
+
         // transfer the amount to the recipient
         balances[dst] = add96(balances[dst], amount, "Shard::mint: transfer amount overflows");
         emit Transfer(address(0), dst, amount);
@@ -239,7 +239,7 @@ contract Shard {
         } else {
             amount = safe96(rawAmount, "Shard::permit: amount exceeds 96 bits");
         }
-        
+
         require(block.timestamp <= deadline, "Shard::permit: signature expired");
         bytes32 structHash = keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, rawAmount, nonces[owner]++, deadline));
         address signatory = ecrecover(getDigest(structHash), v, r, s);
@@ -319,13 +319,13 @@ contract Shard {
      */
     function transferBySig(address dst, uint rawAmount, uint nonce, uint expiry, uint8 v, bytes32 r, bytes32 s) external {
         uint96 amount = safe96(rawAmount, "Shard::transferBySig: amount exceeds 96 bits");
-        
+
         require(block.timestamp <= expiry, "Shard::transferBySig: signature expired");
         bytes32 structHash = keccak256(abi.encode(TRANSFER_TYPEHASH, dst, rawAmount, nonce, expiry));
         address signatory = ecrecover(getDigest(structHash), v, r, s);
         require(signatory != address(0), "Shard::transferBySig: invalid signature");
         require(nonce == nonces[signatory]++, "Shard::transferBySig: invalid nonce");
-        
+
         return _transferTokens(signatory, dst, amount);
     }
 
@@ -439,7 +439,7 @@ contract Shard {
 
     function _burnTokens(address src, uint96 amount) internal {
         require(src != address(0), "Shard::_burnTokens: cannot transfer from the zero address");
-        
+
         balances[src] = sub96(balances[src], amount, "Shard::_burnTokens: transfer amount exceeds balance");
         totalSupply -= amount; // no case where balance exceeds totalSupply
         emit Transfer(src, address(0), amount);
@@ -521,7 +521,7 @@ contract Shard {
     function add256(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256 c) {
         require((c = a + b) >= a, errorMessage);
     }
-    
+
     function getDigest(bytes32 structHash) internal view returns (bytes32) {
         uint256 chainId;
         assembly { chainId := chainid() }
